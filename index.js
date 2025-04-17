@@ -494,7 +494,61 @@ app.get('/init', async (req, res) => {
     }
   });
   
-
+  app.get('/friends/profile/:id', async (req, res) => {
+    const friendId = req.params.id;
+  
+    try {
+      const [user, stats] = await Promise.all([
+        db.one('SELECT username FROM users WHERE user_id = $1', [friendId]),
+        db.oneOrNone(`
+          SELECT 
+            COUNT(DISTINCT DATE(completed_at)) AS "daysWorkedOut",
+            COALESCE(SUM(weight), 0) AS "totalWeight"
+          FROM completed_workouts
+          WHERE user_id = $1
+        `, [friendId])
+      ]);
+  
+      const lastWorkout = await db.any(`
+        SELECT cw.exercise_name, cs.reps, cs.weight, TO_CHAR(cw.completed_at, 'YYYY-MM-DD') as date
+        FROM completed_workouts cw
+        JOIN completed_sets cs ON cs.completed_workout_id = cw.completed_id
+        WHERE cw.user_id = $1
+        ORDER BY cw.completed_at DESC, cs.set_number ASC
+      `, [friendId]);
+  
+      // Group sets into exercises
+      const grouped = {};
+      for (const row of lastWorkout) {
+        if (!grouped[row.exercise_name]) {
+          grouped[row.exercise_name] = { reps: [], weights: [], date: row.date };
+        }
+        grouped[row.exercise_name].reps.push(row.reps);
+        grouped[row.exercise_name].weights.push(row.weight);
+      }
+  
+      const exercises = Object.entries(grouped).map(([exercise_name, data]) => ({
+        exercise_name,
+        reps: data.reps,
+        weights: data.weights,
+        date: data.date
+      }));
+  
+      res.json({
+        username: user.username,
+        weekly_workout_count: stats?.daysWorkedOut || 0,
+        weekly_total_weight: stats?.totalWeight || 0,
+        lastWorkout: exercises.length > 0 ? {
+          date: exercises[0].date,
+          exercises
+        } : null
+      });
+    } catch (err) {
+      console.error('Failed to load friend profile:', err);
+      res.status(500).json({ error: 'Could not load profile.' });
+    }
+  });
+  
   app.get('/friends', async (req, res) => {
     const userId = req.session.user_id;
   
