@@ -1,0 +1,347 @@
+{{#> layout name="main" }}
+<div class="container py-4 text-light">
+  <h2 class="mb-4">Workout Sessions</h2>
+
+  <!-- Create New Session -->
+<div class="d-flex justify-content-end mb-3">
+  <button class="btn btn-dark-green" data-bs-toggle="modal" data-bs-target="#createSessionModal">
+    Create New Session
+  </button>
+</div>
+
+<!-- Workout Session Modal with Cleaner Layout -->
+<div class="modal fade" id="createSessionModal" tabindex="-1" aria-labelledby="createSessionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content bg-black text-light border-secondary">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">Create Workout Session</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+<form id="createSessionForm">
+
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Session Name</label>
+            <input type="text" name="session_name" class="form-control bg-dark text-light border-secondary" required>
+          </div>
+
+          <div id="exerciseFields" class="d-flex flex-column gap-2">
+            <!-- Template row -->
+            <div class="exercise-row bg-dark border border-secondary rounded p-3 d-flex align-items-center gap-2 flex-wrap" draggable="true">
+              <input type="text" name="exercises[0][name]" class="form-control bg-dark text-light border-secondary w-25" placeholder="Exercise Name" required>
+              <input type="number" name="exercises[0][low]" class="form-control bg-dark text-light border-secondary w-15" placeholder="Min Reps" required>
+              <input type="number" name="exercises[0][high]" class="form-control bg-dark text-light border-secondary w-15" placeholder="Max Reps" required>
+              <input type="text" name="exercises[0][notes]" class="form-control bg-dark text-light border-secondary flex-grow-1" placeholder="Notes (optional)">
+              <button type="button" class="btn btn-danger btn-sm remove-row">Remove</button>
+            </div>
+          </div>
+
+          <button type="button" id="addExerciseBtn" class="btn btn-outline-light btn-sm mt-3">+ Add Exercise</button>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="submit" class="btn btn-dark-green">Create Session</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- View Session Modal -->
+<div class="modal fade" id="viewSessionModal" tabindex="-1" aria-labelledby="viewSessionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content bg-black text-light border-secondary">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewSessionModalLabel">Session Details</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="sessionDetails">
+          <!-- JS will populate this -->
+        </div>
+        <div class="text-end mt-3">
+<button class="btn btn-outline-warning btn-sm edit-session">
+  Edit
+</button>
+
+
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Edit Session Modal -->
+<div class="modal fade" id="editSessionModal" tabindex="-1" aria-labelledby="editSessionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content bg-black text-light border-secondary">
+      <form id="editSessionForm" method="POST">
+        <div class="modal-header border-0">
+          <h5 class="modal-title" id="editSessionModalLabel">Edit Workout Session</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Session Name</label>
+            <input type="text" name="session_name" id="editSessionName" class="form-control bg-dark text-light border-secondary" required>
+          </div>
+
+          <div id="editExerciseFields" class="d-flex flex-column gap-2"></div>
+
+          <button type="button" id="addEditExerciseBtn" class="btn btn-outline-light btn-sm mt-3">+ Add Exercise</button>
+        </div>
+        
+        <div class="modal-footer border-0">
+          <button type="submit" class="btn btn-success">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  let exerciseIndex = 1;
+  const container = document.getElementById('exerciseFields');
+
+  document.getElementById('addExerciseBtn').addEventListener('click', () => {
+    const row = document.createElement('div');
+    row.className = 'exercise-row bg-dark border border-secondary rounded p-3 d-flex align-items-center gap-2 flex-wrap';
+    row.setAttribute('draggable', 'true');
+    row.innerHTML = `
+      <input type="text" name="exercises[${exerciseIndex}][name]" class="form-control bg-dark text-light border-secondary w-25" placeholder="Exercise Name" required>
+      <input type="number" name="exercises[${exerciseIndex}][low]" class="form-control bg-dark text-light border-secondary w-15" placeholder="Min Reps" required>
+      <input type="number" name="exercises[${exerciseIndex}][high]" class="form-control bg-dark text-light border-secondary w-15" placeholder="Max Reps" required>
+      <input type="text" name="exercises[${exerciseIndex}][notes]" class="form-control bg-dark text-light border-secondary flex-grow-1" placeholder="Notes (optional)">
+      <button type="button" class="btn btn-danger btn-sm remove-row">Remove</button>
+    `;
+    container.appendChild(row);
+    exerciseIndex++;
+  });
+
+  container.addEventListener('click', (e) => {
+    if (e.target.classList.contains('remove-row')) {
+      e.target.closest('.exercise-row').remove();
+    }
+  });
+
+  let dragged;
+  container.addEventListener('dragstart', (e) => {
+    dragged = e.target;
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const afterElement = Array.from(container.children).find(child => {
+      const box = child.getBoundingClientRect();
+      return e.clientY < box.top + box.height / 2;
+    });
+    if (afterElement) container.insertBefore(dragged, afterElement);
+    else container.appendChild(dragged);
+  });
+
+  document.getElementById('createSessionForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const form = e.target;
+    const formData = new FormData(form);
+    const payload = {
+      session_name: formData.get('session_name'),
+      exercises: []
+    };
+
+    const rows = document.querySelectorAll('.exercise-row');
+    rows.forEach(row => {
+      const name = row.querySelector('[name$="[name]"]').value;
+      const low = row.querySelector('[name$="[low]"]').value;
+      const high = row.querySelector('[name$="[high]"]').value;
+      const notes = row.querySelector('[name$="[notes]"]').value;
+
+      payload.exercises.push({ name, low, high, notes });
+    });
+
+    try {
+      const res = await fetch('/sessions/create-with-exercises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        // ✅ Close modal and optionally show a success toast
+        const modal = bootstrap.Modal.getInstance(document.getElementById('createSessionModal'));
+        modal.hide();
+
+        // Optionally reload the session list
+        location.reload(); // or dynamically update the list with JS
+      } else {
+        alert(result.message || 'Something went wrong.');
+      }
+    } catch (err) {
+      console.error('Error creating session:', err);
+      alert('Server error.');
+    }
+  });
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.view-session-btn').forEach(button => {
+    button.addEventListener('click', async () => {
+      const sessionId = button.dataset.sessionId;
+      const res = await fetch(`/sessions/${sessionId}/json`);
+      const data = await res.json();
+
+      const container = document.getElementById('sessionDetails');
+      const editBtn = document.querySelector('#viewSessionModal .edit-session');
+      if (editBtn) {
+        editBtn.dataset.sessionId = sessionId;
+      }
+
+      let html = `
+        <h5>${data.name}</h5>
+        <ul class="list-group mt-3">`;
+
+      data.exercises.forEach(ex => {
+        html += `
+          <li class="list-group-item bg-dark text-light border-secondary">
+            <strong>${ex.name}</strong><br/>
+            Reps: ${ex.low_rep_range}-${ex.high_rep_range}<br/>
+            ${ex.notes ? `Notes: ${ex.notes}` : ''}
+          </li>`;
+      });
+
+      html += '</ul>';
+      container.innerHTML = html;
+
+      // ✅ Show modal
+      const modal = new bootstrap.Modal(document.getElementById('viewSessionModal'));
+      modal.show();
+    });
+  });
+});
+
+document.querySelectorAll('.edit-session').forEach(button => {
+  button.addEventListener('click', async () => {
+    const sessionId = button.dataset.sessionId;
+    const res = await fetch(`/sessions/${sessionId}/edit`);
+    const data = await res.json();
+
+    // Populate modal inputs
+    document.getElementById('editSessionName').value = data.session.name;
+    const container = document.getElementById('editExerciseFields');
+    container.innerHTML = '';
+    
+data.exercises.forEach((ex, i) => {
+  const row = document.createElement('div');
+  row.className = 'exercise-row d-flex gap-2 flex-wrap border border-secondary rounded p-3 mb-2 bg-dark';
+  row.innerHTML = `
+    <input type="text" name="exercises[${i}][name]" value="${ex.name || ''}" class="form-control text-light bg-dark border-secondary" placeholder="Exercise Name" required>
+    <input type="number" name="exercises[${i}][low]" value="${ex.low_rep_range || ''}" class="form-control text-light bg-dark border-secondary" placeholder="Min Reps" required>
+    <input type="number" name="exercises[${i}][high]" value="${ex.high_rep_range || ''}" class="form-control text-light bg-dark border-secondary" placeholder="Max Reps" required>
+    <input type="text" name="exercises[${i}][notes]" value="${ex.notes || ''}" class="form-control text-light bg-dark border-secondary" placeholder="e.g. Slow tempo, pause at bottom">
+    <button type="button" class="btn btn-sm btn-danger remove-edit-row">Remove</button>
+  `;
+  container.appendChild(row);
+});
+
+
+    document.getElementById('editSessionForm').action = `/sessions/${sessionId}/edit`;
+    const modal = new bootstrap.Modal(document.getElementById('editSessionModal'));
+    modal.show();
+  });
+});
+
+
+  let editExerciseIndex = 0;
+
+  document.getElementById('addEditExerciseBtn').addEventListener('click', () => {
+    const container = document.getElementById('editExerciseFields');
+    const row = document.createElement('div');
+    row.className = 'exercise-row d-flex gap-2 flex-wrap border border-secondary rounded p-3 mb-2 bg-dark';
+row.innerHTML = `
+  <input type="text" name="exercises[${editExerciseIndex}][name]" class="form-control text-light bg-dark border-secondary" placeholder="Exercise Name" required>
+  <input type="number" name="exercises[${editExerciseIndex}][low]" class="form-control text-light bg-dark border-secondary" placeholder="Min Reps" required>
+  <input type="number" name="exercises[${editExerciseIndex}][high]" class="form-control text-light bg-dark border-secondary" placeholder="Max Reps" required>
+  <input type="text" name="exercises[${editExerciseIndex}][notes]" class="form-control text-light bg-dark border-secondary" placeholder="e.g. Notes (optional)">
+  <button type="button" class="btn btn-sm btn-danger remove-edit-row">Remove</button>
+`;
+
+    container.appendChild(row);
+    editExerciseIndex++;
+  });
+
+  document.getElementById('editExerciseFields').addEventListener('click', (e) => {
+    if (e.target.classList.contains('remove-edit-row')) {
+      e.target.closest('.exercise-row').remove();
+    }
+  });
+
+
+
+</script>
+
+<style>
+  .exercise-row {
+    cursor: grab;
+  }
+  .btn-dark-green {
+    background-color: #14532d;
+    color: white;
+    border: none;
+  }
+  .btn-dark-green:hover {
+    background-color: #1a6639;
+  }
+</style>
+
+
+<style>
+  .list-group-item {
+    cursor: move;
+  }
+</style>
+
+
+ <!-- Display Existing Sessions -->
+{{#if sessions.length}}
+<div class="card bg-black border border-secondary shadow-sm">
+  <div class="card-header bg-primary text-white border-bottom-0">Your Sessions</div>
+  <div class="card-body">
+    <ul class="list-group list-group-flush">
+      {{#each sessions}}
+      <li class="list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-center">
+        <div>
+          <strong>{{this.name}}</strong>
+          <small class="d-block text-muted">Created: {{this.created_at}}</small>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-light btn-sm view-session-btn" data-session-id="{{this.session_id}}">
+  View
+</button>
+
+          <form action="/sessions/{{this.session_id}}/delete" method="POST" onsubmit="return confirm('Delete this session?');">
+            <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
+          </form>
+        </div>
+      </li>
+      {{/each}}
+    </ul>
+  </div>
+</div>
+{{else}}
+<p class="text-muted">No sessions created yet. Start by creating one above.</p>
+{{/if}}
+
+
+<style>
+  .btn-dark-green {
+    background-color: #24532c;
+    color: #d1e7dd;
+    border: 1px solid #1d4024;
+  }
+  .btn-dark-green:hover {
+    background-color: #1d4024;
+    color: #e6f2ec;
+  }
+</style>
+{{/layout}}

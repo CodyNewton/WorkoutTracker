@@ -1,0 +1,11 @@
+{{>head}}
+{{#if user_id}}
+  {{> nav }}
+{{else}}
+  <header class="text-center mt-3">
+    <h1 class="text-light">🏋️ Workout Tracker</h1>
+  </header>
+{{/if}}
+
+{{{body}}}
+{{>footer}}

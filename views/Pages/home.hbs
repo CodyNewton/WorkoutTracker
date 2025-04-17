@@ -1,0 +1,115 @@
+{{#> layout name="main" }}
+{{> message}}
+
+<div class="container mt-5">
+  {{#if noData}}
+    <div class="text-center">
+      <h2 class="text-light mb-4">No Data Yet</h2>
+      <p class="text-muted fs-5">You haven't logged any workouts this week.</p>
+      <p class="text-muted">Start a new workout to begin tracking your progress!</p>
+    </div>
+  {{else}}
+    <h2 class="text-center mb-5 text-light">This Week's Progress</h2>
+    <div class="row text-center mb-5">
+      <div class="col-md-4 mb-4">
+        <div class="card bg-secondary-subtle text-white border-0 h-100 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title text-muted">Days Worked Out</h5>
+            <p class="display-6 fw-bold text-light">{{stats.daysWorkedOut}}</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4">
+        <div class="card bg-secondary-subtle text-white border-0 h-100 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title text-muted">Total Weight Lifted</h5>
+            <p class="display-6 fw-bold text-light">{{stats.totalWeight}} lbs</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4">
+        <div class="card bg-secondary-subtle text-white border-0 h-100 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title text-muted">Most Improved Exercise</h5>
+            <p class="display-6 fw-bold text-light">{{stats.mostImproved}}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  {{/if}}
+</div>
+
+<div class="container mt-5">
+  <h3 class="text-center text-light mb-4">🏆 Weekly Leaderboard</h3>
+  <div class="text-end text-muted mb-2">
+  <small>Last updated: {{lastUpdated}}</small>
+</div>
+
+  <div class="table-responsive">
+    <table class="table table-dark table-borderless align-middle shadow rounded overflow-hidden">
+      <thead class="bg-secondary text-light">
+        <tr>
+          <th>#</th>
+          <th>Friend</th>
+          <th>Days Worked Out</th>
+          <th>Total Weight</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each leaderboard}}
+          <tr class="{{#if this.isUser}}bg-primary text-white fw-bold{{else}}text-light{{/if}}">
+            <th scope="row">{{inc @index}}</th>
+            <td>{{this.name}}</td>
+            <td>{{this.daysWorkedOut}}</td>
+            <td>{{this.totalWeight}} lbs</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="text-center mt-4">
+  <button class="btn btn-outline-light btn-lg" data-bs-toggle="modal" data-bs-target="#selectWorkoutModal">
+    <i class="bi bi-play-circle"></i> Start a Workout
+  </button>
+</div>
+
+<!-- Start Workout Modal -->
+<div class="modal fade" id="selectWorkoutModal" tabindex="-1" aria-labelledby="selectWorkoutModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header">
+        <h5 class="modal-title" id="selectWorkoutModalLabel">Select a Workout Session</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <h6 class="mb-3">Your Workout Sessions</h6>
+
+        {{#if sessions.length}}
+          <ul class="list-group mb-4">
+            {{#each sessions}}
+              <li class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center border-secondary">
+                {{this.name}} — {{this.exercises_count}} exercises
+                <form method="POST" action="/workouts/start/{{this.session_id}}">
+                  <button type="submit" class="btn btn-outline-primary btn-sm">Start</button>
+                </form>
+              </li>
+            {{/each}}
+          </ul>
+        {{else}}
+          <p class="text-muted">You don’t have any workout sessions yet.</p>
+        {{/if}}
+
+        <hr class="text-secondary" />
+        <h6>Create New Session</h6>
+        <div class="text-end">
+          <a href="/sessions" class="btn btn-outline-light">
+            <i class="bi bi-plus-circle"></i> Create Workout Session
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{{/layout}}

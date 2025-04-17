@@ -1,0 +1,20 @@
+
+<style>
+  .custom-alert-danger {
+    background-color: #661a1a; /* Dark red */
+    color: #f8d7da;
+  }
+</style>
+
+{{#if message}}
+  <div class="alert 
+              alert-dismissible 
+              fade show 
+              {{#if error}}custom-alert-danger{{else}}alert-success{{/if}} 
+              text-light border-0" 
+       role="alert">
+    {{{message}}}
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+{{/if}}
+

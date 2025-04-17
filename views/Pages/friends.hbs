@@ -1,0 +1,78 @@
+{{#> layout name="main" }}
+<style>
+  .btn-dark-green {
+    background-color: #24532c; /* dark forest green */
+    color: #d1e7dd;
+    border: 1px solid #1d4024;
+  }
+  .btn-dark-green:hover {
+    background-color: #1d4024;
+    color: #e6f2ec;
+  }
+</style>
+
+<div class="container py-4 text-light">
+  <h2 class="mb-4">Friends</h2>
+
+  <!-- Add Friend Form -->
+  <div class="card bg-black border border-secondary mb-4 shadow-sm">
+    <div class="card-header bg-secondary text-white border-bottom-0">Add a Friend</div>
+    <div class="card-body">
+      <form action="/friends/request" method="POST" class="d-flex gap-2">
+        <input type="text" name="username" placeholder="Enter username" class="form-control bg-dark text-light border-secondary" required />
+        <button class="btn btn-dark-green">Send Request</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Incoming Friend Requests -->
+  {{#if requests.length}}
+  <div class="card bg-black border border-secondary mb-4 shadow-sm">
+    <div class="card-header bg-warning text-dark border-bottom-0">Incoming Friend Requests</div>
+    <div class="card-body">
+      <ul class="list-group list-group-flush">
+        {{#each requests}}
+        <li class="list-group-item d-flex justify-content-between align-items-center bg-dark text-light border-secondary">
+          <span>{{this.username}}</span>
+          <div class="d-flex gap-2">
+            <form action="/friends/accept" method="POST" class="m-0">
+              <input type="hidden" name="sender_id" value="{{this.user_id}}">
+              <button class="btn btn-dark-green btn-sm">Accept</button>
+            </form>
+            <form action="/friends/decline" method="POST" class="m-0">
+              <input type="hidden" name="sender_id" value="{{this.user_id}}">
+              <button class="btn btn-outline-danger btn-sm">Decline</button>
+            </form>
+          </div>
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Accepted Friends -->
+  {{#if friends.length}}
+  <div class="card bg-black border border-secondary shadow-sm">
+    <div class="card-header bg-primary text-white border-bottom-0">Your Friends</div>
+    <div class="card-body">
+      <ul class="list-group list-group-flush">
+        {{#each friends}}
+        <li class="list-group-item d-flex justify-content-between align-items-center bg-dark text-light border-secondary">
+          <span>{{this.username}}</span>
+          <form action="/friends/remove" method="POST" class="m-0">
+            <input type="hidden" name="friend_id" value="{{this.user_id}}">
+            <button class="btn btn-outline-danger btn-sm">Remove</button>
+          </form>
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+  </div>
+  {{else}}
+  <p class="text-muted mt-3">You don't have any accepted friends yet.</p>
+  {{/if}}
+</div>
+{{/layout}}
+
+

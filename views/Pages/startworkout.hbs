@@ -1,0 +1,84 @@
+{{#> layout name="main" }}
+<div class="container py-4 text-light">
+  <h2 class="mb-4 text-center">Start Your Workout</h2>
+
+  <form method="POST" action="/workouts/complete" >
+<input type="hidden" name="session_id" value="{{sessionId}}" />
+
+
+    {{#each exercises}}
+    <div class="card bg-dark mb-4 border border-secondary">
+      <div class="card-header">
+        <strong>{{name}}</strong> — Reps: {{low_rep_range}}–{{high_rep_range}}
+        {{#if recommendation}}
+        <span class="float-end text-warning"><em>{{recommendation}}</em></span>
+        {{/if}}
+      </div>
+        <div class="card-body" data-exercise-index="{{@index}}">
+  <input type="hidden" name="exercises[{{@index}}][name]" value="{{name}}">
+
+        {{#each sets}}
+        <div class="row mb-2 set-row">
+          <div class="col-md-6">
+            <label class="form-label">Reps (Set {{inc @index}})</label>
+            <input type="number" name="exercises[{{@../index}}][sets][{{@index}}][reps]" class="form-control bg-black text-light border-secondary" value="{{reps}}" required>
+          </div>
+          <div class="col-md-5">
+            <label class="form-label">Weight (lbs)</label>
+            <input type="number" name="exercises[{{@../index}}][sets][{{@index}}][weight]" class="form-control bg-black text-light border-secondary" value="{{weight}}" required>
+          </div>
+          <div class="col-md-1 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-danger btn-sm remove-set-btn">✕</button>
+          </div>
+        </div>
+        {{/each}}
+
+        <div class="text-end">
+          <button type="button" class="btn btn-outline-light btn-sm add-set-btn" data-exercise-index="{{@index}}">
+            + Add Set
+          </button>
+        </div>
+      </div>
+    </div>
+    {{/each}}
+
+    <div class="text-center mt-4">
+      <button type="submit" class="btn btn-success btn-lg">Finish Workout</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  document.querySelectorAll('.add-set-btn').forEach(button => {
+    button.addEventListener('click', () => {
+      const idx = button.dataset.exerciseIndex;
+      const cardBody = document.querySelector(`.card-body[data-exercise-index="${idx}"]`);
+      const rows = cardBody.querySelectorAll('.set-row');
+      const newIndex = rows.length;
+
+      const newRow = document.createElement('div');
+      newRow.className = 'row mb-2 set-row';
+      newRow.innerHTML = `
+        <div class="col-md-6">
+          <label class="form-label">Reps (Set ${newIndex + 1})</label>
+          <input type="number" name="exercises[${idx}][sets][${newIndex}][reps]" class="form-control bg-black text-light border-secondary" required>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Weight (lbs)</label>
+          <input type="number" name="exercises[${idx}][sets][${newIndex}][weight]" class="form-control bg-black text-light border-secondary" required>
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+          <button type="button" class="btn btn-outline-danger btn-sm remove-set-btn">✕</button>
+        </div>
+      `;
+      cardBody.insertBefore(newRow, button.parentElement);
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('remove-set-btn')) {
+      e.target.closest('.set-row').remove();
+    }
+  });
+</script>
+{{/layout}}

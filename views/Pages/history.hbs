@@ -1,0 +1,137 @@
+{{#> layout name="main" }}
+<style>
+  .bg-purple { background-color: #6f42c1 !important; }
+</style>
+
+<div class="container my-5">
+  <h2 class="text-light text-center mb-4">Workout History</h2>
+
+  {{#if message}}
+    <div class="alert alert-danger text-light">{{message}}</div>
+  {{/if}}
+
+  {{#if groupedWorkouts}}
+    <div class="bg-dark border border-secondary rounded p-4 shadow mb-5">
+      <h5 class="text-light mb-3">Workout Log by Date</h5>
+      <ul class="list-group list-group-flush">
+        {{#each groupedWorkouts}}
+          <li class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center border-secondary">
+            <div>
+              <strong>{{@key}}</strong>
+            <small class="text-muted">
+  — {{#if this.exercises.[0]}}{{this.exercises.[0].session_name}}{{/if}}
+</small>
+
+            </div>
+            <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#modal-{{@index}}">
+              View
+            </button>
+          </li>
+
+          <!-- Modal -->
+<!-- Modal -->
+<div class="modal fade" id="modal-{{@index}}" tabindex="-1" aria-labelledby="modalLabel-{{@index}}" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalLabel-{{@index}}">Workout Details — {{@key}}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+
+        <p class="text-end text-muted mb-4">
+          <strong>Total Volume:</strong>
+          <span class="text-light fw-bold">{{this.totalVolume}} lbs</span>
+        </p>
+
+        <table class="table table-dark table-bordered text-center">
+          <thead class="bg-purple text-white">
+            <tr>
+              <th>Session</th>
+              <th>Exercise</th>
+              <th>Reps per Set</th>
+              <th>Weights per Set</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each this.exercises}}
+              <tr>
+                <td>{{session_name}}</td>
+                <td>{{exercise_name}}</td>
+                <td>{{join reps ", "}}</td>
+                <td>{{join weights ", "}} lbs</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+        {{/each}}
+      </ul>
+    </div>
+  {{else}}
+    <div class="text-center text-muted mt-5">
+      <p>No completed workouts yet.</p>
+      <a href="/home" class="btn btn-outline-light">Start Your First Workout</a>
+    </div>
+  {{/if}}
+
+  <!-- Charts -->
+  {{#each chartDataBySession}}
+    <div class="bg-dark border border-secondary rounded p-4 mb-5 shadow">
+      <h5 class="text-light mb-3">{{@key}} – Total Volume Over Time</h5>
+      <canvas id="chart-{{@index}}" height="100"></canvas>
+    </div>
+  {{/each}}
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const chartData = {{{chartDataBySession}}};
+  let index = 0;
+
+  Object.entries(chartData).forEach(([sessionName, entries]) => {
+    const ctx = document.getElementById(`chart-${index}`)?.getContext('2d');
+    const labels = entries.map(entry => entry.date);
+    const volumes = entries.map(entry => entry.volume);
+
+    if (ctx) {
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: sessionName,
+            data: volumes,
+            borderColor: 'rgba(140, 180, 255, 0.9)',
+            backgroundColor: 'rgba(140, 180, 255, 0.2)',
+            fill: true,
+            tension: 0.4,
+            borderWidth: 2,
+            pointRadius: 3
+          }]
+        },
+        options: {
+          scales: {
+            x: { ticks: { color: '#fff' }, grid: { color: '#444' }},
+            y: { ticks: { color: '#fff' }, grid: { color: '#444' }}
+          },
+          plugins: {
+            legend: { labels: { color: '#fff' }}
+          }
+        }
+      });
+    }
+
+    index++;
+  });
+
+
+
+</script>
+{{/layout}}
