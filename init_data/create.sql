@@ -61,3 +61,12 @@ CREATE TABLE completed_sets (
   reps INT NOT NULL,
   weight INT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS autosave_workouts (
+  user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+  session_id INT REFERENCES workout_sessions(session_id),
+  data JSONB NOT NULL,
+  saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, session_id)
+);
+

@@ -1,7 +1,7 @@
 {{#> layout name="main" }}
 <style>
   .btn-dark-green {
-    background-color: #24532c; /* dark forest green */
+    background-color: #24532c;
     color: #d1e7dd;
     border: 1px solid #1d4024;
   }
@@ -12,15 +12,19 @@
 </style>
 
 <div class="container py-4 text-light">
-  <h2 class="mb-4">Friends</h2>
+  <h2 class="mb-4 text-center">Friends</h2>
 
   <!-- Add Friend Form -->
   <div class="card bg-black border border-secondary mb-4 shadow-sm">
     <div class="card-header bg-secondary text-white border-bottom-0">Add a Friend</div>
     <div class="card-body">
-      <form action="/friends/request" method="POST" class="d-flex gap-2">
-        <input type="text" name="username" placeholder="Enter username" class="form-control bg-dark text-light border-secondary" required />
-        <button class="btn btn-dark-green">Send Request</button>
+      <form action="/friends/request" method="POST" class="row g-2">
+        <div class="col-12 col-md-9">
+          <input type="text" name="username" placeholder="Enter username" class="form-control bg-dark text-light border-secondary" required />
+        </div>
+        <div class="col-12 col-md-3">
+          <button class="btn btn-dark-green w-100">Send Request</button>
+        </div>
       </form>
     </div>
   </div>
@@ -32,16 +36,16 @@
     <div class="card-body">
       <ul class="list-group list-group-flush">
         {{#each requests}}
-        <li class="list-group-item d-flex justify-content-between align-items-center bg-dark text-light border-secondary">
-          <span>{{this.username}}</span>
-          <div class="d-flex gap-2">
-            <form action="/friends/accept" method="POST" class="m-0">
+        <li class="list-group-item bg-dark text-light border-secondary d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+          <span class="fw-bold">{{this.username}}</span>
+          <div class="d-flex flex-column flex-sm-row w-100 w-md-auto gap-2">
+            <form action="/friends/accept" method="POST" class="w-100">
               <input type="hidden" name="sender_id" value="{{this.user_id}}">
-              <button class="btn btn-dark-green btn-sm">Accept</button>
+              <button class="btn btn-dark-green btn-sm w-100">Accept</button>
             </form>
-            <form action="/friends/decline" method="POST" class="m-0">
+            <form action="/friends/decline" method="POST" class="w-100">
               <input type="hidden" name="sender_id" value="{{this.user_id}}">
-              <button class="btn btn-outline-danger btn-sm">Decline</button>
+              <button class="btn btn-outline-danger btn-sm w-100">Decline</button>
             </form>
           </div>
         </li>
@@ -51,18 +55,35 @@
   </div>
   {{/if}}
 
-  <!-- Accepted Friends -->
+  <!-- Sent Requests -->
+  {{#if sentRequests.length}}
+  <div id="sent-requests-card" class="card bg-black border border-secondary mb-4 shadow-sm">
+    <div class="card-header bg-dark text-white border-bottom-0">Sent Friend Requests</div>
+    <div class="card-body">
+      <ul id="sent-request-list" class="list-group list-group-flush">
+        {{#each sentRequests}}
+        <li id="request-{{this.request_id}}" class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center border-secondary">
+          <span>{{this.username}}</span>
+          <button class="btn btn-outline-danger btn-sm cancel-request-btn" data-request-id="{{this.request_id}}">Cancel</button>
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Friends List -->
   {{#if friends.length}}
   <div class="card bg-black border border-secondary shadow-sm">
     <div class="card-header bg-primary text-white border-bottom-0">Your Friends</div>
     <div class="card-body">
       <ul class="list-group list-group-flush">
         {{#each friends}}
-        <li class="list-group-item d-flex justify-content-between align-items-center bg-dark text-light border-secondary">
-          <span>{{this.username}}</span>
-          <form action="/friends/remove" method="POST" class="m-0">
+        <li class="list-group-item bg-dark text-light border-secondary d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+          <span class="fw-bold friend-name" data-user-id="{{this.user_id}}" role="button" style="cursor:pointer;">{{this.username}}</span>
+          <form action="/friends/remove" method="POST" class="w-100 w-md-auto">
             <input type="hidden" name="friend_id" value="{{this.user_id}}">
-            <button class="btn btn-outline-danger btn-sm">Remove</button>
+            <button class="btn btn-outline-danger btn-sm w-100">Remove</button>
           </form>
         </li>
         {{/each}}
@@ -70,9 +91,85 @@
     </div>
   </div>
   {{else}}
-  <p class="text-muted mt-3">You don't have any accepted friends yet.</p>
+  <p class="text-muted mt-3 text-center">You don't have any accepted friends yet.</p>
   {{/if}}
 </div>
+
+<!-- Friend Profile Modal -->
+<div class="modal fade" id="friendProfileModal" tabindex="-1" aria-labelledby="friendProfileModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header">
+        <h5 class="modal-title" id="friendProfileModalLabel">Friend Profile</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="friendProfileContent">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.friend-name').forEach(el => {
+    el.addEventListener('click', async () => {
+      const userId = el.dataset.userId;
+      const modal = new bootstrap.Modal(document.getElementById('friendProfileModal'));
+      const content = document.getElementById('friendProfileContent');
+      content.innerHTML = '<div class="text-center">Loading...</div>';
+
+      try {
+        const res = await fetch(`/friends/profile/${userId}`);
+        const data = await res.json();
+        content.innerHTML = `
+          <p><strong>Username:</strong> ${data.username}</p>
+          <p><strong>Total Workouts This Week:</strong> ${data.weekly_workout_count}</p>
+          <p><strong>Total Weight Lifted:</strong> ${data.weekly_total_weight} lbs</p>
+          ${data.lastWorkout ? `
+            <hr />
+            <h6>Last Workout: ${data.lastWorkout.date}</h6>
+            <ul class="list-group list-group-flush">
+              ${data.lastWorkout.exercises.map(ex => `
+                <li class="list-group-item bg-dark text-light">
+                  <strong>${ex.exercise_name}</strong><br/>
+                  Reps: ${ex.reps.join(', ')}<br/>
+                  Weights: ${ex.weights.join(', ')} lbs
+                </li>
+              `).join('')}
+            </ul>
+          ` : '<p class="text-muted">No workouts yet.</p>'}
+        `;
+      } catch (err) {
+        content.innerHTML = '<div class="text-danger">Failed to load profile.</div>';
+      }
+
+      modal.show();
+    });
+  });
+
+  document.querySelectorAll('.cancel-request-btn').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const requestId = e.target.dataset.requestId;
+      try {
+        const res = await fetch('/friends/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: requestId })
+        });
+        const result = await res.json();
+        if (result.success) {
+          const row = document.getElementById(`request-${requestId}`);
+          if (row) row.remove();
+          const list = document.getElementById('sent-request-list');
+          if (list && list.children.length === 0) {
+            const card = document.getElementById('sent-requests-card');
+            if (card) card.classList.add('d-none');
+          }
+        }
+      } catch (err) {
+        console.error('Error canceling friend request:', err);
+      }
+    });
+  });
+</script>
 {{/layout}}
-
-

@@ -12,6 +12,7 @@ const bodyParser = require('body-parser');
 const session = require('express-session'); // To set the session object. To store or access session data, use the `req.session`, which is (generally) serialized as JSON by the store.
 const bcrypt = require('bcryptjs'); //  To hash passwords
 const axios = require('axios'); // To make HTTP requests from our server. We'll learn more about it in Part C.
+const { env } = require('process');
 
 // *****************************************************
 // <!-- Section 2 : Connect to DB -->
@@ -37,7 +38,6 @@ hbs.handlebars.registerHelper('inc', function(value) {
 });
 
 // database configuration
-
 
 const db = pgp(
   process.env.DATABASE_URL || {
@@ -91,88 +91,16 @@ app.use(
 // Authentication Middleware.
 
 
-app.get('/login', (req, res) => {
+app.get('/login', async (req, res) => {
   const { message, error } = req.session;
   delete req.session.message;
   delete req.session.error;
-
   res.render('Pages/login', {
     ...(message && { message }),
     ...(error && { error })
   });
 });
-app.get('/init', async (req, res) => {
-  try {
-    await db.none(`
-      CREATE TABLE IF NOT EXISTS users (
-        user_id SERIAL PRIMARY KEY,
-        username TEXT NOT NULL UNIQUE,
-        email TEXT UNIQUE,
-        password TEXT NOT NULL,
-        weekly_workout_count INT DEFAULT 0,
-        weekly_total_weight INT DEFAULT 0
-      );
 
-      CREATE TABLE IF NOT EXISTS workout_sessions (
-        session_id SERIAL PRIMARY KEY,
-        user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS workouts (
-        workout_id SERIAL PRIMARY KEY,
-        session_id INT REFERENCES workout_sessions(session_id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        low_rep_range INT,
-        high_rep_range INT,
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS friends (
-        friendship_id SERIAL PRIMARY KEY,
-        user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
-        friend_id INT REFERENCES users(user_id) ON DELETE CASCADE,
-        status TEXT CHECK (status IN ('pending', 'accepted')) NOT NULL DEFAULT 'pending',
-        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (user_id, friend_id)
-      );
-
-      CREATE TABLE IF NOT EXISTS friend_requests (
-        request_id SERIAL PRIMARY KEY,
-        sender_id INT REFERENCES users(user_id) ON DELETE CASCADE,
-        receiver_id INT REFERENCES users(user_id) ON DELETE CASCADE,
-        status TEXT CHECK (status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
-        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        responded_at TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS completed_workouts (
-        completed_id SERIAL PRIMARY KEY,
-        user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
-        session_id INT REFERENCES workout_sessions(session_id),
-        exercise_name TEXT NOT NULL,
-        sets INT NOT NULL,
-        reps INT NOT NULL,
-        weight INT NOT NULL,
-        completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS completed_sets (
-        set_id SERIAL PRIMARY KEY,
-        completed_workout_id INT REFERENCES completed_workouts(completed_id) ON DELETE CASCADE,
-        set_number INT NOT NULL,
-        reps INT NOT NULL,
-        weight INT NOT NULL
-      );
-    `);
-    res.send('✅ Database initialized!');
-  } catch (err) {
-    console.error('❌ Init error:', err);
-    res.status(500).send('Failed to initialize DB.');
-  }
-});
 
 app.get('/init', async (req, res) => {
   try {
@@ -239,13 +167,23 @@ app.get('/init', async (req, res) => {
         reps INT NOT NULL,
         weight INT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS autosave_workouts (
+        user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+        session_id INT REFERENCES workout_sessions(session_id),
+        data JSONB NOT NULL,
+        saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, session_id)
+      );
     `);
-    res.send('✅ Database initialized!');
+
+    res.send('✅ Database initialized successfully!');
   } catch (err) {
     console.error('❌ Init error:', err);
     res.status(500).send('Failed to initialize DB.');
   }
 });
+
 
 
   app.get('/register', (req, res) => {
@@ -302,7 +240,21 @@ app.get('/init', async (req, res) => {
   
       req.session.user_id = user.user_id;
       req.session.username = user.username;
-  
+      const autosave = await db.oneOrNone(`
+        SELECT a.session_id, a.data 
+        FROM autosave_workouts a
+        JOIN workout_sessions s ON a.session_id = s.session_id
+        WHERE a.user_id = $1 
+          AND s.user_id = $1
+          AND a.saved_at > NOW() - INTERVAL '30 minutes'
+        ORDER BY a.saved_at DESC 
+        LIMIT 1
+      `, [req.session.user_id]);
+      
+      
+      if (autosave) {
+        return res.redirect(`/workouts/resume/${autosave.session_id}`);
+      }
       req.session.save(() => res.redirect('/home'));
     } catch (err) {
       console.error('Login error:', err);
@@ -336,7 +288,70 @@ app.get('/init', async (req, res) => {
   
   // Authentication Required
   app.use(auth);
-
+  app.get('/workouts/resume/:session_id', async (req, res) => {
+    const { session_id } = req.params;
+    const userId = req.session.user_id;
+  
+    try {
+      // Get session exercise metadata (rep range, etc.)
+      const sessionExercises = await db.any(`
+        SELECT name, low_rep_range, high_rep_range, notes
+        FROM workouts
+        WHERE session_id = $1
+        ORDER BY workout_id
+      `, [session_id]);
+  
+      // Fetch latest autosave entry
+      const autosave = await db.oneOrNone(`
+        SELECT data FROM autosave_workouts 
+        WHERE user_id = $1 AND session_id = $2
+        ORDER BY saved_at DESC LIMIT 1
+      `, [userId, session_id]);
+  
+      if (!autosave || !autosave.data || !Array.isArray(autosave.data.exercises)) {
+        return res.redirect('/home');
+      }
+  
+      // Map saved data to session exercises
+      const savedDataMap = {};
+      autosave.data.exercises.forEach(ex => {
+        savedDataMap[ex.name] = ex.sets;
+      });
+  
+      const enrichedExercises = sessionExercises.map(ex => {
+        const savedSets = savedDataMap[ex.name] || [];
+  
+        // Always return 3 sets
+        const sets = Array(3).fill().map((_, i) => ({
+          reps: savedSets[i]?.reps || '',
+          weight: savedSets[i]?.weight || ''
+        }));
+  
+        return {
+          ...ex,
+          sets
+        };
+      });
+  
+      console.log('✅ Rendering with enriched autosaved exercises:', enrichedExercises);
+  
+      res.render('Pages/startworkout', {
+        sessionId: session_id,
+        exercises: enrichedExercises
+      });
+  
+    } catch (err) {
+      console.error('❌ Error rendering autosave resume view:', err);
+      res.redirect('/home');
+    }
+  });
+  
+  
+  
+  
+  
+  
+  
   const getStartOfWeek = () => {
     const now = new Date();
     const day = now.getDay(); // 0 = Sunday
@@ -490,21 +505,90 @@ app.get('/init', async (req, res) => {
         JOIN users u ON u.user_id = f.friend_id
         WHERE f.user_id = $1 AND f.status = 'accepted'
       `, [userId]);
-  
-      const requests = await db.any(`
+      
+      const incomingRequests = await db.any(`
         SELECT fr.request_id, u.user_id, u.username
         FROM friend_requests fr
         JOIN users u ON fr.sender_id = u.user_id
         WHERE fr.receiver_id = $1 AND fr.status = 'pending'
       `, [userId]);
-  
-      res.render('Pages/friends', { friends, requests });
+      
+      const sentRequests = await db.any(`
+        SELECT fr.request_id, u.user_id, u.username
+        FROM friend_requests fr
+        JOIN users u ON fr.receiver_id = u.user_id
+        WHERE fr.sender_id = $1 AND fr.status = 'pending'
+      `, [userId]);
+      
+
+      
+      res.render('Pages/friends', {
+        friends,
+        requests: incomingRequests,
+        sentRequests
+      });
+      
     } catch (err) {
       console.error('Error loading friends:', err);
       res.render('Pages/friends', { friends: [], requests: [], error: 'Could not load friends.' });
     }
   });
   
+ 
+  
+  app.post('/friends/cancel', async (req, res) => {
+    const userId = req.session.user_id;
+    const { request_id } = req.body;
+  
+    try {
+      const request = await db.oneOrNone(`
+        SELECT * FROM friend_requests
+        WHERE request_id = $1 AND sender_id = $2 AND status = 'pending'
+      `, [request_id, userId]);
+  
+      if (!request) {
+        return res.status(404).json({ success: false, message: 'Request not found' });
+      }
+  
+      await db.none(`
+        DELETE FROM friend_requests
+        WHERE request_id = $1
+      `, [request_id]);
+  
+      res.json({ success: true, request_id });
+    } catch (err) {
+      console.error('❌ Error canceling sent request:', err);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
+  });
+  
+  
+
+  app.get('/friends/stats/:id', async (req, res) => {
+    const friendId = req.params.id;
+  
+    try {
+      const [user, stats] = await Promise.all([
+        db.one('SELECT username FROM users WHERE user_id = $1', [friendId]),
+        db.oneOrNone(`
+          SELECT 
+            COUNT(DISTINCT DATE(completed_at)) AS "daysWorkedOut",
+            COALESCE(SUM(weight), 0) AS "totalWeight"
+          FROM completed_workouts
+          WHERE user_id = $1
+        `, [friendId])
+      ]);
+  
+      res.json({
+        username: user.username,
+        daysWorkedOut: stats?.daysWorkedOut || 0,
+        totalWeight: stats?.totalWeight || 0
+      });
+    } catch (err) {
+      console.error('Failed to load friend stats:', err);
+      res.status(500).json({ error: 'Could not load profile.' });
+    }
+  });
   
   app.post('/friends/request', async (req, res) => {
     const userId = req.session.user_id;
@@ -970,6 +1054,35 @@ ORDER BY workout_id ASC
   });
   
   
+  app.post('/autosave', async (req, res) => {
+    const userId = req.session.user_id;
+    const { session_id, exercises } = req.body;
+  
+    if (!userId || !session_id || !Array.isArray(exercises)) {
+      return res.status(400).send('Invalid autosave payload.');
+    }
+  
+    try {
+      const data = { exercises }; // wrap in object
+      if (!exercises.length) {
+        return res.status(204).send(); // Don't save if there's no input yet
+      }
+      
+      await db.none(`
+    INSERT INTO autosave_workouts (user_id, session_id, data)
+    VALUES ($1, $2, $3::jsonb)
+    ON CONFLICT (user_id, session_id)
+    DO UPDATE SET data = $3::jsonb, saved_at = NOW()
+  `, [userId, session_id, JSON.stringify({ exercises })]);
+  
+      res.sendStatus(200);
+    } catch (err) {
+      console.error('❌ Failed to autosave:', err);
+      res.status(500).send('Autosave failed.');
+    }
+  });
+  
+  
   
   app.post('/workouts/complete', async (req, res) => {
     console.log('Received workout submission:', req.body);
@@ -1015,7 +1128,10 @@ ORDER BY workout_id ASC
           );
         }
       }
-  
+      await db.none(
+        `DELETE FROM autosave_workouts WHERE user_id = $1 AND session_id = $2`,
+        [userId, session_id]
+      );
       res.redirect('/history');
     } catch (err) {
       console.error('❌ Error saving completed workout:', err);

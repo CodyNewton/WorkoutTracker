@@ -2,38 +2,38 @@
 <div class="container py-4 text-light">
   <h2 class="mb-4 text-center">Start Your Workout</h2>
 
-  <form method="POST" action="/workouts/complete" >
-<input type="hidden" name="session_id" value="{{sessionId}}" />
-
+  <form method="POST" action="/workouts/complete">
+    <input type="hidden" name="session_id" value="{{sessionId}}" />
 
     {{#each exercises}}
     <div class="card bg-dark mb-4 border border-secondary">
       <div class="card-header">
-        <strong>{{name}}</strong> — Reps: {{low_rep_range}}–{{high_rep_range}}
+        <strong>{{name}}</strong>
+        {{#if low_rep_range}} — Reps: {{low_rep_range}}–{{high_rep_range}}{{/if}}
         {{#if recommendation}}
         <span class="float-end text-warning"><em>{{recommendation}}</em></span>
         {{/if}}
       </div>
-        <div class="card-body" data-exercise-index="{{@index}}">
-  <input type="hidden" name="exercises[{{@index}}][name]" value="{{name}}">
+      <div class="card-body" data-exercise-index="{{@index}}">
+        <input type="hidden" name="exercises[{{@index}}][name]" value="{{name}}" />
 
         {{#each sets}}
         <div class="row mb-2 set-row">
-          <div class="col-md-6">
+          <div class="col-12 col-md-6">
             <label class="form-label">Reps (Set {{inc @index}})</label>
-            <input type="number" name="exercises[{{@../index}}][sets][{{@index}}][reps]" class="form-control bg-black text-light border-secondary" value="{{reps}}" required>
+            <input type="number" name="exercises[{{@../index}}][sets][{{@index}}][reps]" value="{{reps}}" class="form-control bg-black text-light border-secondary" required>
           </div>
-          <div class="col-md-5">
+          <div class="col-12 col-md-5">
             <label class="form-label">Weight (lbs)</label>
-            <input type="number" name="exercises[{{@../index}}][sets][{{@index}}][weight]" class="form-control bg-black text-light border-secondary" value="{{weight}}" required>
+            <input type="number" name="exercises[{{@../index}}][sets][{{@index}}][weight]" value="{{weight}}" class="form-control bg-black text-light border-secondary" required>
           </div>
-          <div class="col-md-1 d-flex align-items-end">
-            <button type="button" class="btn btn-outline-danger btn-sm remove-set-btn">✕</button>
+          <div class="col-12 col-md-1 d-flex align-items-end mt-2 mt-md-0">
+            <button type="button" class="btn btn-outline-danger btn-sm remove-set-btn w-100">✕</button>
           </div>
         </div>
         {{/each}}
 
-        <div class="text-end">
+        <div class="text-end mt-2">
           <button type="button" class="btn btn-outline-light btn-sm add-set-btn" data-exercise-index="{{@index}}">
             + Add Set
           </button>
@@ -53,25 +53,24 @@
     button.addEventListener('click', () => {
       const idx = button.dataset.exerciseIndex;
       const cardBody = document.querySelector(`.card-body[data-exercise-index="${idx}"]`);
-      const rows = cardBody.querySelectorAll('.set-row');
-      const newIndex = rows.length;
+      const setCount = cardBody.querySelectorAll('.set-row').length;
 
-      const newRow = document.createElement('div');
-      newRow.className = 'row mb-2 set-row';
-      newRow.innerHTML = `
-        <div class="col-md-6">
-          <label class="form-label">Reps (Set ${newIndex + 1})</label>
-          <input type="number" name="exercises[${idx}][sets][${newIndex}][reps]" class="form-control bg-black text-light border-secondary" required>
+      const row = document.createElement('div');
+      row.className = 'row mb-2 set-row';
+      row.innerHTML = `
+        <div class="col-12 col-md-6">
+          <label class="form-label">Reps (Set ${setCount + 1})</label>
+          <input type="number" name="exercises[${idx}][sets][${setCount}][reps]" class="form-control bg-black text-light border-secondary" required>
         </div>
-        <div class="col-md-5">
+        <div class="col-12 col-md-5">
           <label class="form-label">Weight (lbs)</label>
-          <input type="number" name="exercises[${idx}][sets][${newIndex}][weight]" class="form-control bg-black text-light border-secondary" required>
+          <input type="number" name="exercises[${idx}][sets][${setCount}][weight]" class="form-control bg-black text-light border-secondary" required>
         </div>
-        <div class="col-md-1 d-flex align-items-end">
-          <button type="button" class="btn btn-outline-danger btn-sm remove-set-btn">✕</button>
+        <div class="col-12 col-md-1 d-flex align-items-end mt-2 mt-md-0">
+          <button type="button" class="btn btn-outline-danger btn-sm remove-set-btn w-100">✕</button>
         </div>
       `;
-      cardBody.insertBefore(newRow, button.parentElement);
+      cardBody.insertBefore(row, button.parentElement);
     });
   });
 
@@ -80,5 +79,59 @@
       e.target.closest('.set-row').remove();
     }
   });
+
+  // 🔁 AUTOSAVE LOGIC STARTS HERE
+  let autosaveTimer;
+  const AUTOSAVE_INTERVAL_MS = 30000;
+
+  function collectWorkoutData() {
+    const sessionId = document.querySelector('input[name="session_id"]')?.value;
+    const exerciseCards = document.querySelectorAll('.card-body[data-exercise-index]');
+    const exercises = [];
+
+    exerciseCards.forEach(card => {
+      const index = card.dataset.exerciseIndex;
+      const name = card.querySelector(`input[name="exercises[${index}][name]"]`)?.value || '';
+      const sets = [];
+
+      card.querySelectorAll('.set-row').forEach((row, setIdx) => {
+        const reps = row.querySelector(`input[name="exercises[${index}][sets][${setIdx}][reps]"]`)?.value;
+        const weight = row.querySelector(`input[name="exercises[${index}][sets][${setIdx}][weight]"]`)?.value;
+        if (reps || weight) {
+          sets.push({ reps, weight });
+        }
+      });
+
+      if (sets.length) {
+        exercises.push({ name, sets });
+      }
+    });
+
+    return { session_id: sessionId, exercises };
+  }
+
+  function autosaveWorkout() {
+    const data = collectWorkoutData();
+    console.log("⏳ Autosaving:", data);
+
+    fetch('/autosave', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).catch(err => console.error('❌ Autosave failed:', err));
+  }
+
+  function startAutosave() {
+    autosaveTimer = setInterval(autosaveWorkout, AUTOSAVE_INTERVAL_MS);
+  }
+
+  document.querySelector('form').addEventListener('submit', () => {
+    clearInterval(autosaveTimer);
+  });
+
+  // Start it up!
+  startAutosave();
+
+
 </script>
 {{/layout}}
