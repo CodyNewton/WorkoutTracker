@@ -37,15 +37,18 @@ hbs.handlebars.registerHelper('inc', function(value) {
 });
 
 // database configuration
-const dbConfig = {
-  host: 'db', // the database server
-  port: 5432, // the database port
-  database: process.env.POSTGRES_DB, // the database name
-  user: process.env.POSTGRES_USER, // the user account to connect with
-  password: process.env.POSTGRES_PASSWORD, // the password of the user account
-};
 
-const db = pgp(dbConfig);
+
+const db = pgp(
+  process.env.DATABASE_URL || {
+    host: 'localhost',
+    port: 5432,
+    database: 'your_local_db_name',
+    user: 'your_local_user',
+    password: 'your_local_password'
+  }
+);
+
 
 // test your database
 db.connect()
@@ -97,6 +100,78 @@ app.get('/login', (req, res) => {
     ...(message && { message }),
     ...(error && { error })
   });
+});
+app.get('/init', async (req, res) => {
+  try {
+    await db.none(`
+      CREATE TABLE IF NOT EXISTS users (
+        user_id SERIAL PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        email TEXT UNIQUE,
+        password TEXT NOT NULL,
+        weekly_workout_count INT DEFAULT 0,
+        weekly_total_weight INT DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS workout_sessions (
+        session_id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS workouts (
+        workout_id SERIAL PRIMARY KEY,
+        session_id INT REFERENCES workout_sessions(session_id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        low_rep_range INT,
+        high_rep_range INT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS friends (
+        friendship_id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+        friend_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+        status TEXT CHECK (status IN ('pending', 'accepted')) NOT NULL DEFAULT 'pending',
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_id, friend_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS friend_requests (
+        request_id SERIAL PRIMARY KEY,
+        sender_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+        receiver_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+        status TEXT CHECK (status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        responded_at TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS completed_workouts (
+        completed_id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+        session_id INT REFERENCES workout_sessions(session_id),
+        exercise_name TEXT NOT NULL,
+        sets INT NOT NULL,
+        reps INT NOT NULL,
+        weight INT NOT NULL,
+        completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS completed_sets (
+        set_id SERIAL PRIMARY KEY,
+        completed_workout_id INT REFERENCES completed_workouts(completed_id) ON DELETE CASCADE,
+        set_number INT NOT NULL,
+        reps INT NOT NULL,
+        weight INT NOT NULL
+      );
+    `);
+    res.send('✅ Database initialized!');
+  } catch (err) {
+    console.error('❌ Init error:', err);
+    res.status(500).send('Failed to initialize DB.');
+  }
 });
 
 app.get('/init', async (req, res) => {
@@ -893,6 +968,7 @@ ORDER BY workout_id ASC
       res.status(500).send('Error loading workout session.');
     }
   });
+  
   
   
   app.post('/workouts/complete', async (req, res) => {
