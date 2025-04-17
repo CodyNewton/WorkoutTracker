@@ -37,15 +37,18 @@ hbs.handlebars.registerHelper('inc', function(value) {
 });
 
 // database configuration
-const dbConfig = {
-  host: 'db', // the database server
-  port: 5432, // the database port
-  database: process.env.POSTGRES_DB, // the database name
-  user: process.env.POSTGRES_USER, // the user account to connect with
-  password: process.env.POSTGRES_PASSWORD, // the password of the user account
-};
+const pgp = require('pg-promise')();
 
-const db = pgp(dbConfig);
+const db = pgp(
+  process.env.DATABASE_URL || {
+    host: 'localhost',
+    port: 5432,
+    database: 'your_local_db_name',
+    user: 'your_local_user',
+    password: 'your_local_password'
+  }
+);
+
 
 // test your database
 db.connect()
