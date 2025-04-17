@@ -9,29 +9,29 @@
       <p class="text-muted">Start a new workout to begin tracking your progress!</p>
     </div>
   {{else}}
-    <h2 class="text-center mb-5 text-light">This Week's Progress</h2>
-    <div class="row text-center mb-5">
-      <div class="col-md-4 mb-4">
-        <div class="card bg-secondary-subtle text-white border-0 h-100 shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title text-muted">Days Worked Out</h5>
-            <p class="display-6 fw-bold text-light">{{stats.daysWorkedOut}}</p>
+    <h2 class="text-center mb-4 text-light">This Week's Progress</h2>
+    <div class="row row-cols-1 row-cols-md-3 g-3 mb-4">
+      <div class="col">
+        <div class="card bg-secondary-subtle text-white h-100 shadow-sm">
+          <div class="card-body text-center">
+            <h6 class="card-title text-muted">Days Worked Out</h6>
+            <p class="fs-2 fw-bold text-light">{{stats.daysWorkedOut}}</p>
           </div>
         </div>
       </div>
-      <div class="col-md-4 mb-4">
-        <div class="card bg-secondary-subtle text-white border-0 h-100 shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title text-muted">Total Weight Lifted</h5>
-            <p class="display-6 fw-bold text-light">{{stats.totalWeight}} lbs</p>
+      <div class="col">
+        <div class="card bg-secondary-subtle text-white h-100 shadow-sm">
+          <div class="card-body text-center">
+            <h6 class="card-title text-muted">Total Weight Lifted</h6>
+            <p class="fs-2 fw-bold text-light">{{stats.totalWeight}} lbs</p>
           </div>
         </div>
       </div>
-      <div class="col-md-4 mb-4">
-        <div class="card bg-secondary-subtle text-white border-0 h-100 shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title text-muted">Most Improved Exercise</h5>
-            <p class="display-6 fw-bold text-light">{{stats.mostImproved}}</p>
+      <div class="col">
+        <div class="card bg-secondary-subtle text-white h-100 shadow-sm">
+          <div class="card-body text-center">
+            <h6 class="card-title text-muted">Most Improved Exercise</h6>
+            <p class="fs-6 fw-bold text-light">{{stats.mostImproved}}</p>
           </div>
         </div>
       </div>
@@ -42,30 +42,45 @@
 <div class="container mt-5">
   <h3 class="text-center text-light mb-4">🏆 Weekly Leaderboard</h3>
   <div class="text-end text-muted mb-2">
-  <small>Last updated: {{lastUpdated}}</small>
-</div>
+    <small>Last updated: {{lastUpdated}}</small>
+  </div>
 
-  <div class="table-responsive">
-    <table class="table table-dark table-borderless align-middle shadow rounded overflow-hidden">
-      <thead class="bg-secondary text-light">
-        <tr>
-          <th>#</th>
-          <th>Friend</th>
-          <th>Days Worked Out</th>
-          <th>Total Weight</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each leaderboard}}
-          <tr class="{{#if this.isUser}}bg-primary text-white fw-bold{{else}}text-light{{/if}}">
-            <th scope="row">{{inc @index}}</th>
-            <td>{{this.name}}</td>
-            <td>{{this.daysWorkedOut}}</td>
-            <td>{{this.totalWeight}} lbs</td>
+  <div class="d-none d-md-block">
+    <div class="table-responsive">
+      <table class="table table-dark table-borderless align-middle shadow rounded overflow-hidden">
+        <thead class="bg-secondary text-light">
+          <tr>
+            <th>#</th>
+            <th>Friend</th>
+            <th>Days Worked Out</th>
+            <th>Total Weight</th>
           </tr>
-        {{/each}}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {{#each leaderboard}}
+            <tr class="{{#if this.isUser}}bg-primary text-white fw-bold{{else}}text-light{{/if}}">
+              <th scope="row">{{inc @index}}</th>
+              <td>{{this.name}}</td>
+              <td>{{this.daysWorkedOut}}</td>
+              <td>{{this.totalWeight}} lbs</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Mobile Card View -->
+  <div class="d-md-none">
+    {{#each leaderboard}}
+      <div class="card bg-dark text-light mb-3">
+        <div class="card-body">
+          <h5 class="card-title mb-1">{{this.name}}</h5>
+          <p class="mb-1"><strong>Days Worked Out:</strong> {{this.daysWorkedOut}}</p>
+          <p><strong>Total Weight:</strong> {{this.totalWeight}} lbs</p>
+        </div>
+      </div>
+    {{/each}}
   </div>
 </div>
 
@@ -89,9 +104,9 @@
         {{#if sessions.length}}
           <ul class="list-group mb-4">
             {{#each sessions}}
-              <li class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center border-secondary">
-                {{this.name}} — {{this.exercises_count}} exercises
-                <form method="POST" action="/workouts/start/{{this.session_id}}">
+              <li class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center border-secondary flex-wrap">
+                <span>{{this.name}} — {{this.exercises_count}} exercises</span>
+                <form method="POST" action="/workouts/start/{{this.session_id}}" class="mt-2 mt-md-0">
                   <button type="submit" class="btn btn-outline-primary btn-sm">Start</button>
                 </form>
               </li>
@@ -112,4 +127,12 @@
     </div>
   </div>
 </div>
+
+<style>
+  @media (max-width: 576px) {
+    .display-6 {
+      font-size: 1.5rem;
+    }
+  }
+</style>
 {{/layout}}
